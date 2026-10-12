@@ -1440,16 +1440,37 @@
 				windowOrigin = window.location.origin;
 
 			if (event.origin === windowOrigin)
-				return true;
+			{
+				// Pages loaded from file:// all share the opaque origin "null",
+				// as do data: and sandboxed frames. For "null" also require the
+				// sender to be a frame of this document (a plugin frame) or
+				// our parent.
+				if ("null" !== event.origin)
+					return true;
+				if (event.source && (event.source === window.parent || event.source === window))
+					return true;
+				let frames = document.getElementsByTagName("iframe");
+				for (let i = 0, len = frames.length; i < len; i++)
+				{
+					if (frames[i].contentWindow === event.source)
+						return true;
+				}
+				return false;
+			}
 
-			// allow chrome extensions
-			if (event.origin && (0 === event.origin.indexOf("chrome-extension://")))
-				return true;
-
-			// external plugins
+			// external plugins: exact origin of the plugin's base url
 			let plugin = this.getPluginByGuid(guid);
-			if (plugin && 0 === plugin.baseUrl.indexOf(event.origin))
-				return true;
+			if (plugin && plugin.baseUrl && event.origin && "null" !== event.origin)
+			{
+				try
+				{
+					if (new URL(plugin.baseUrl, window.location.href).origin === event.origin)
+						return true;
+				}
+				catch (err)
+				{
+				}
+			}
 
 			return false;
 		},
@@ -1647,7 +1668,11 @@
 			let methodName = "pluginMethod_" + name;
 			let methodRetValue = undefined;
 
-			if (this.api[methodName])
+			// Plugins may not install, update or remove other plugins: plugin
+			// installation is disabled in this build.
+			let isBlocked = ("InstallPlugin" === name || "UpdatePlugin" === name || "RemovePlugin" === name);
+
+			if (this.api[methodName] && !isBlocked)
 				methodRetValue = this.api[methodName].apply(this.api, value);
 
 			if (guid === this.internalGuid)
