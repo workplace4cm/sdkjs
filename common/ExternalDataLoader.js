@@ -154,7 +154,10 @@
 	CExternalDataPromiseGetter.prototype.getLocalDesktopPromise = function () {
 		const oThis = this;
 		return new Promise(function (resolve) {
-			if (oThis.fileUrl) {
+			// Only plain local paths: no network shares (which send Windows
+			// credentials to the host) and no URLs.
+			let isRemote = !oThis.fileUrl || /^(\\\\|\/\/)/.test(oThis.fileUrl) || /^[a-z][a-z0-9+.-]+:\/\//i.test(oThis.fileUrl);
+			if (!isRemote) {
 				window["AscDesktopEditor"]["convertFile"](oThis.fileUrl, 0x2002, function (_file) {
 					let arrStream = null;
 					if (_file) {

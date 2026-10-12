@@ -5622,7 +5622,11 @@
 	};
 
 	WorkbookView.prototype.initExternalReferenceUpdateTimer = function (clear) {
-		let val = this.model.workbookPr && this.model.workbookPr.getUpdateLinks();
+		// The "update links automatically" flag comes from the file, so a
+		// workbook could make the editor fetch its linked files (including
+		// network shares) every 30 seconds. Links are only updated when the
+		// user asks for it.
+		let val = false;
 		let oThis = this;
 		if (clear) {
 			this.clearExternalReferenceUpdateTimer();
