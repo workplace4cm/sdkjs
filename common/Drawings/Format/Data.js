@@ -7746,6 +7746,10 @@ Because of this, the display is sometimes not correct.
     {
       this.recalcTransform();
       this.recalcBounds();
+      // A resized SmartArt scales its shapes but not their text: fit the
+      // text to the new shape sizes again, as Word does, so a word does not
+      // break inside a block or spill over its edge.
+      this.recalcFitFontSize();
       this.addToRecalculate();
       this.recalcWrapPolygon();
       if(this.spTree)
