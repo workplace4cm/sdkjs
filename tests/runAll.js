@@ -65,6 +65,7 @@ const allTests = [
 	'word/content-control/inline-level/date-time.html',
 	'word/custom-xml/custom-xml.html',
 	'word/document-calculation/floating-position/drawing.html',
+	'word/drawing-extent/drawingExtent.html',
 	'word/document-calculation/paragraph.html',
 	'word/document-calculation/table/correctBadTable.html',
 	'word/document-calculation/table/flowTablePosition.html',

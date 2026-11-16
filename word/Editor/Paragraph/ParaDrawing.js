@@ -4314,9 +4314,102 @@ CAnchorPosition.prototype.Calculate_Y_Value = function(RelativeFrom, isInTable)
 	return Value;
 };
 
+/**
+ * Word lays a drawing out, and draws it, at the size of its wp:extent. The
+ * object's own size (the a:xfrm of a picture, an OLE object, a group or a
+ * locked drawing canvas) can say something else: a locked canvas keeps its
+ * canvas coordinates there, and other programs leave the original size of a
+ * resized picture in it. Pictures and groups are drawn at their own size, so
+ * such a drawing was drawn larger or smaller than the room the line reserves
+ * for it: it ran over the page margins and over the text below it.
+ *
+ * Brings the object's own size to wp:extent. A group keeps its child
+ * coordinates (chOff/chExt), so its shapes scale with it. Shapes, charts and
+ * SmartArt already take their size from wp:extent and are left alone.
+ * @param {ParaDrawing} oParaDrawing
+ * @returns {boolean} whether the size was changed
+ */
+function FitGraphicSizeToDrawingExtent(oParaDrawing)
+{
+	var oGraphic = oParaDrawing && oParaDrawing.GraphicObj;
+	var oExtent  = oParaDrawing && oParaDrawing.Extent;
+	if (!oGraphic || !oExtent || !oGraphic.spPr || !oGraphic.spPr.xfrm || !oGraphic.getObjectType)
+		return false;
+
+	var nType   = oGraphic.getObjectType();
+	var isGroup = (AscDFH.historyitem_type_GroupShape === nType || AscDFH.historyitem_type_LockedCanvas === nType);
+	if (!isGroup && AscDFH.historyitem_type_ImageShape !== nType && AscDFH.historyitem_type_OleObject !== nType)
+		return false;
+
+	var oXfrm = oGraphic.spPr.xfrm;
+	var dW = oExtent.W, dH = oExtent.H;
+	if (!AscFormat.isRealNumber(dW) || !AscFormat.isRealNumber(dH) || dW <= 0 || dH <= 0
+		|| !AscFormat.isRealNumber(oXfrm.extX) || !AscFormat.isRealNumber(oXfrm.extY))
+		return false;
+
+	if (Math.abs(oXfrm.extX - dW) < 0.01 && Math.abs(oXfrm.extY - dH) < 0.01)
+		return false;
+
+	if (isGroup && !(oXfrm.chExtX > 0 && oXfrm.chExtY > 0))
+	{
+		// the children were placed in the group's own size: keep that as the child space
+		oXfrm.setChOffX(AscFormat.isRealNumber(oXfrm.offX) ? oXfrm.offX : 0);
+		oXfrm.setChOffY(AscFormat.isRealNumber(oXfrm.offY) ? oXfrm.offY : 0);
+		oXfrm.setChExtX(oXfrm.extX);
+		oXfrm.setChExtY(oXfrm.extY);
+	}
+	oXfrm.setExtX(dW);
+	oXfrm.setExtY(dH);
+	return true;
+};
+
+/**
+ * Scales an inline drawing down, keeping its proportions, so that it fits in
+ * dMaxW x dMaxH (the text column and the page's text height). Never enlarges.
+ * @returns {boolean} whether the drawing was scaled
+ */
+ParaDrawing.prototype.FitInlineToArea = function(dMaxW, dMaxH)
+{
+	if (!this.IsInline() || !this.GraphicObj || !(dMaxW > 0) || !(dMaxH > 0))
+		return false;
+
+	var dW = this.Extent.W, dH = this.Extent.H;
+	if (!AscFormat.isRealNumber(dW) || !AscFormat.isRealNumber(dH) || dW <= 0 || dH <= 0)
+		return false;
+
+	var oXfrm = this.GraphicObj.spPr && this.GraphicObj.spPr.xfrm;
+	var dRot  = oXfrm && AscFormat.isRealNumber(oXfrm.rot) ? oXfrm.rot : 0;
+	// a drawing turned by 90 degrees takes its height across the line
+	var dBoxW = AscFormat.checkNormalRotate(dRot) ? dW : dH;
+	var dBoxH = AscFormat.checkNormalRotate(dRot) ? dH : dW;
+
+	// half a millimetre of tolerance: Word's own "full width" drawings are the column width
+	if (dBoxW <= dMaxW + 0.5 && dBoxH <= dMaxH + 0.5)
+		return false;
+
+	var dScale = Math.min(dMaxW / dBoxW, dMaxH / dBoxH, 1);
+	if (dScale >= 1 || dScale <= 0)
+		return false;
+
+	if (oXfrm && AscFormat.isRealNumber(oXfrm.extX) && AscFormat.isRealNumber(oXfrm.extY))
+	{
+		oXfrm.setExtX(oXfrm.extX * dScale);
+		oXfrm.setExtY(oXfrm.extY * dScale);
+	}
+	this.setExtent(dW * dScale, dH * dScale);
+
+	var nType = this.GraphicObj.getObjectType();
+	if (AscDFH.historyitem_type_SmartArt === nType && this.GraphicObj.setXfrmByParent)
+		this.GraphicObj.setXfrmByParent();
+	if (this.GraphicObj.handleUpdateExtents)
+		this.GraphicObj.handleUpdateExtents();
+	return true;
+};
+
 //--------------------------------------------------------export----------------------------------------------------
 window['AscCommonWord'] = window['AscCommonWord'] || {};
 window['AscCommonWord'].ParaDrawing = ParaDrawing;
+window['AscCommonWord'].FitGraphicSizeToDrawingExtent = FitGraphicSizeToDrawingExtent;
 
 window['AscWord'] = window['AscWord'] || {};
 window['AscWord'].ParaDrawing = ParaDrawing;

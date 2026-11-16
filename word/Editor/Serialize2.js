@@ -12325,6 +12325,10 @@ function Binary_DocumentTableReader(doc, oReadResult, openParams, stream, curNot
 					GraphicObj.spPr.setXfrm(oXfrm);
 					delete GraphicObj.bEmptyTransform;
 				}
+				else
+				{
+					AscCommonWord.FitGraphicSizeToDrawingExtent(oParaDrawing);
+				}
 
 				if(drawing_Anchor == oParaDrawing.DrawingType && typeof AscCommon.History.RecalcData_Add === "function")//TODO некорректная проверка typeof
 					AscCommon.History.RecalcData_Add( { Type : AscDFH.historyitem_recalctype_Flow, Data : oParaDrawing});
