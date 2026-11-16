@@ -1692,6 +1692,7 @@ CDocument.prototype.On_EndLoad                     = function()
 
 	// ВАЖНО: Вызываем данную функцию после обновления секций
 	this.private_UpdateFieldsOnEndLoad();
+	this.private_FitInlineDrawingsOnEndLoad();
 	this.RemoveSelection();
 
     // Перемещаем курсор в начало документа
@@ -1728,6 +1729,60 @@ CDocument.prototype.sendEvent = function()
 CDocument.prototype.UpdateDefaultsDependingOnCompatibility = function()
 {
 	this.Styles.UpdateDefaultsDependingOnCompatibility(this.GetCompatibilityMode());
+};
+/**
+ * An inline drawing larger than the text column (or taller than the page's
+ * text area) is scaled down, keeping its proportions, so it stays inside the
+ * page margins instead of running off the page. Only drawings in the main
+ * text's own paragraphs: floating drawings keep the position the document
+ * gives them, and table cells size themselves around their content.
+ * Drawings are never enlarged.
+ */
+CDocument.prototype.private_FitInlineDrawingsOnEndLoad = function()
+{
+	// part of opening the file, not an edit: nothing to undo
+	var oHistory = AscCommon.History;
+	oHistory.TurnOff();
+
+	try
+	{
+		for (var nIndex = 0, nCount = this.Content.length; nIndex < nCount; ++nIndex)
+		{
+			var oParagraph = this.Content[nIndex];
+			if (!oParagraph || !oParagraph.IsParagraph || !oParagraph.IsParagraph())
+				continue;
+
+			var arrDrawings = oParagraph.GetAllDrawingObjects ? oParagraph.GetAllDrawingObjects([]) : [];
+			if (!arrDrawings.length)
+				continue;
+
+			var oSectPr = oParagraph.Get_SectPr ? oParagraph.Get_SectPr() : null;
+			if (!oSectPr)
+				continue;
+
+			var oFrame = oSectPr.GetContentFrame(0);
+			var dMaxW  = oFrame.Right - oFrame.Left;
+			var nCols  = oSectPr.GetColumnCount ? oSectPr.GetColumnCount() : 1;
+			if (nCols > 1)
+			{
+				dMaxW = 0;
+				for (var nCol = 0; nCol < nCols; ++nCol)
+					dMaxW = Math.max(dMaxW, oSectPr.GetColumnWidth(nCol));
+			}
+			var dMaxH = oFrame.Bottom - oFrame.Top;
+
+			for (var nDr = 0; nDr < arrDrawings.length; ++nDr)
+			{
+				var oDrawing = arrDrawings[nDr];
+				if (oDrawing && oDrawing.FitInlineToArea && oDrawing.GetParagraph && oDrawing.GetParagraph() === oParagraph)
+					oDrawing.FitInlineToArea(dMaxW, dMaxH);
+			}
+		}
+	}
+	finally
+	{
+		oHistory.TurnOn();
+	}
 };
 CDocument.prototype.private_UpdateFieldsOnEndLoad = function()
 {
